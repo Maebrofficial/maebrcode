@@ -1,0 +1,22 @@
+{
+  "$schema": "./maebrcode-schema.json",
+  "contextPaths": [
+    "memory.md",
+    ".github/copilot-instructions.md",
+    ".cursorrules",
+    ".cursor/rules/",
+    "CLAUDE.md",
+    "CLAUDE.local.md",
+    "maebrcode.md",
+    "maebrcode.local.md",
+    "MaebrCode.md",
+    "MaebrCode.local.md",
+    "MAEBRCODE.md",
+    "MAEBRCODE.local.md"
+  ],
+  "lsp": {
+    "gopls": {
+      "command": "gopls"
+    }
+  }
+}

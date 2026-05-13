@@ -1,0 +1,76 @@
+version: 2
+project_name: maebrcode
+before:
+  hooks:
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/mohammadtihame/maebrcode/internal/version.Version={{.Version}}
+    main: ./main.go
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      maebrcode-
+      {{- if eq .Os "darwin" }}mac-
+      {{- else if eq .Os "windows" }}windows-
+      {{- else if eq .Os "linux" }}linux-{{end}}
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "#86" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+checksum:
+  name_template: "checksums.txt"
+snapshot:
+  name_template: "0.0.0-{{ .Timestamp }}"
+aurs:
+  - name: maebrcode-bin
+    homepage: "https://github.com/mohammadtihame/maebrcode"
+    description: "terminal based agent that can build anything"
+    maintainers:
+      - "Mohammad Tihame <noreply@maebrcode.dev>"
+    license: "MIT"
+    private_key: "{{ .Env.AUR_KEY }}"
+    git_url: "ssh://aur@aur.archlinux.org/maebrcode-bin.git"
+    provides:
+      - maebrcode
+    conflicts:
+      - maebrcode
+    package: |-
+      install -Dm755 ./maebrcode "${pkgdir}/usr/bin/maebrcode"
+brews:
+  - repository:
+      owner: mohammadtihame
+      name: homebrew-tap
+nfpms:
+  - maintainer: Mohammad Tihame <noreply@maebrcode.dev>
+    description: terminal based agent that can build anything
+    formats:
+      - deb
+      - rpm
+    file_name_template: >-
+      {{ .ProjectName }}-
+      {{- if eq .Os "darwin" }}mac
+      {{- else }}{{ .Os }}{{ end }}-{{ .Arch }}
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^doc:"
+      - "^test:"
+      - "^ci:"
+      - "^ignore:"
+      - "^example:"
+      - "^wip:"
