@@ -29,16 +29,16 @@ MaebrCode is a Go-based CLI application that brings AI assistance to your termin
 
 ```bash
 # Install the latest version
-curl -fsSL https://raw.githubusercontent.com/mohammadtihame/maebrcode/refs/heads/main/install | bash
+curl -fsSL https://raw.githubusercontent.com/Maebrofficial/maebrcode/refs/heads/main/install | bash
 
 # Install a specific version
-curl -fsSL https://raw.githubusercontent.com/mohammadtihame/maebrcode/refs/heads/main/install | VERSION=0.1.0 bash
+curl -fsSL https://raw.githubusercontent.com/Maebrofficial/maebrcode/refs/heads/main/install | VERSION=0.1.0 bash
 ```
 
 ### Using Homebrew (macOS and Linux)
 
 ```bash
-brew install mohammadtihame/tap/maebrcode
+brew install Maebrofficial/tap/maebrcode
 ```
 
 ### Using AUR (Arch Linux)
@@ -54,7 +54,7 @@ paru -S maebrcode-bin
 ### Using Go
 
 ```bash
-go install github.com/mohammadtihame/maebrcode@latest
+go install github.com/Maebrofficial/maebrcode@latest
 ```
 
 ## Configuration
@@ -648,7 +648,7 @@ You can also configure a self-hosted model in the configuration file under the `
 
 ```bash
 # Clone the repository
-git clone https://github.com/mohammadtihame/maebrcode.git
+git clone https://github.com/Maebrofficial/maebrcode.git
 cd maebrcode
 
 # Build
