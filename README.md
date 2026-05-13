@@ -13,7 +13,7 @@ MaebrCode is a Go-based CLI application that brings AI assistance to your termin
 ## Features
 
 - **Interactive TUI**: Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) for a smooth terminal experience
-- **Multiple AI Providers**: Support for OpenAI, Anthropic Claude, Google Gemini, AWS Bedrock, Groq, Azure OpenAI, and OpenRouter
+- **Multiple AI Providers**: Support for OpenAI, Anthropic Claude, Google Gemini, AWS Bedrock, Azure OpenAI, OpenRouter, xAI, Ollama, and custom OpenAI-compatible APIs
 - **Session Management**: Save and manage multiple conversation sessions
 - **Tool Integration**: AI can execute commands, search files, and modify code
 - **Vim-like Editor**: Integrated editor with text input capabilities
@@ -94,7 +94,8 @@ You can configure MaebrCode using environment variables:
 | `GITHUB_TOKEN`             | For Github Copilot models (see [Using Github Copilot](#using-github-copilot))    |
 | `VERTEXAI_PROJECT`         | For Google Cloud VertexAI (Gemini)                                               |
 | `VERTEXAI_LOCATION`        | For Google Cloud VertexAI (Gemini)                                               |
-| `GROQ_API_KEY`             | For Groq models                                                                  |
+| `OPENROUTER_API_KEY`       | For OpenRouter models                                                            |
+| `XAI_API_KEY`              | For xAI models                                                                   |
 | `AWS_ACCESS_KEY_ID`        | For AWS Bedrock (Claude)                                                         |
 | `AWS_SECRET_ACCESS_KEY`    | For AWS Bedrock (Claude)                                                         |
 | `AWS_REGION`               | For AWS Bedrock (Claude)                                                         |
@@ -102,6 +103,8 @@ You can configure MaebrCode using environment variables:
 | `AZURE_OPENAI_API_KEY`     | For Azure OpenAI models (optional when using Entra ID)                           |
 | `AZURE_OPENAI_API_VERSION` | For Azure OpenAI models                                                          |
 | `LOCAL_ENDPOINT`           | For self-hosted models                                                           |
+| `OLLAMA_MODEL`             | For selecting an Ollama model without editing config                             |
+| `OLLAMA_ENDPOINT`          | For overriding the Ollama OpenAI-compatible endpoint                             |
 | `SHELL`                    | Default shell to use (if not specified in config)                                |
 
 ### Shell Configuration
@@ -140,25 +143,36 @@ This is useful if you want to use a different shell than your default system she
     "copilot": {
       "disabled": false
     },
-    "groq": {
+    "openrouter": {
       "apiKey": "your-api-key",
       "disabled": false
     },
-    "openrouter": {
+    "ollama": {
+      "type": "ollama",
+      "apiKey": "ollama",
+      "baseURL": "http://localhost:11434/v1",
+      "disabled": false
+    },
+    "custom": {
+      "type": "openai-compatible",
       "apiKey": "your-api-key",
+      "baseURL": "https://api.example.com/v1",
       "disabled": false
     }
   },
   "agents": {
     "coder": {
+      "provider": "anthropic",
       "model": "claude-3.7-sonnet",
       "maxTokens": 5000
     },
     "task": {
+      "provider": "anthropic",
       "model": "claude-3.7-sonnet",
       "maxTokens": 5000
     },
     "title": {
+      "provider": "anthropic",
       "model": "claude-3.7-sonnet",
       "maxTokens": 80
     }
@@ -237,14 +251,6 @@ MaebrCode supports a variety of AI models from different providers:
 ### AWS Bedrock
 
 - Claude 3.7 Sonnet
-
-### Groq
-
-- Llama 4 Maverick (17b-128e-instruct)
-- Llama 4 Scout (17b-16e-instruct)
-- QWEN QWQ-32b
-- Deepseek R1 distill Llama 70b
-- Llama 3.3 70b Versatile
 
 ### Azure OpenAI
 
@@ -609,30 +615,58 @@ the tool with your github account. This should create a github token at one of t
 
 If using an explicit github token, you may either set the $GITHUB_TOKEN environment variable or add it to the maebrcode.json config file at `providers.copilot.apiKey`.
 
-## Using a self-hosted model provider
+## Using Ollama or another self-hosted provider
 
-MaebrCode can also load and use models from a self-hosted (OpenAI-like) provider.
-This is useful for developers who want to experiment with custom models.
+MaebrCode can use Ollama and any OpenAI-compatible API by configuring a provider id, provider type, base URL, API key, and raw model name.
 
-### Configuring a self-hosted provider
+### Ollama
 
-You can use a self-hosted model by setting the `LOCAL_ENDPOINT` environment variable.
-This will cause MaebrCode to load and use the models from the specified endpoint.
+Start Ollama locally, pull a model, and configure MaebrCode:
 
 ```bash
-LOCAL_ENDPOINT=http://localhost:1235/v1
+ollama pull llama3.2
+OLLAMA_MODEL=llama3.2 maebrcode
 ```
-
-### Configuring a self-hosted model
-
-You can also configure a self-hosted model in the configuration file under the `agents` section:
 
 ```json
 {
+  "providers": {
+    "ollama": {
+      "type": "ollama",
+      "apiKey": "ollama",
+      "baseURL": "http://localhost:11434/v1",
+      "disabled": false
+    }
+  },
   "agents": {
     "coder": {
-      "model": "local.granite-3.3-2b-instruct@q8_0",
-      "reasoningEffort": "high"
+      "provider": "ollama",
+      "model": "llama3.2",
+      "maxTokens": 5000
+    }
+  }
+}
+```
+
+### Custom OpenAI-compatible API
+
+Use `type: "openai-compatible"` for hosted providers that expose `/chat/completions` with the OpenAI schema:
+
+```json
+{
+  "providers": {
+    "my-provider": {
+      "type": "openai-compatible",
+      "apiKey": "your-api-key",
+      "baseURL": "https://api.example.com/v1",
+      "disabled": false
+    }
+  },
+  "agents": {
+    "coder": {
+      "provider": "my-provider",
+      "model": "provider-model-name",
+      "maxTokens": 5000
     }
   }
 }

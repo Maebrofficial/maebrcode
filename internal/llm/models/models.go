@@ -29,7 +29,9 @@ const ( // GEMINI
 )
 
 const (
-	ProviderBedrock ModelProvider = "bedrock"
+	ProviderBedrock          ModelProvider = "bedrock"
+	ProviderOpenAICompatible ModelProvider = "openai-compatible"
+	ProviderOllama           ModelProvider = "ollama"
 	// ForTests
 	ProviderMock ModelProvider = "__mock"
 )
@@ -40,8 +42,8 @@ var ProviderPopularity = map[ModelProvider]int{
 	ProviderAnthropic:  2,
 	ProviderOpenAI:     3,
 	ProviderGemini:     4,
-	ProviderGROQ:       5,
-	ProviderOpenRouter: 6,
+	ProviderOpenRouter: 5,
+	ProviderOllama:     6,
 	ProviderBedrock:    7,
 	ProviderAzure:      8,
 	ProviderVertexAI:   9,
@@ -89,7 +91,6 @@ func init() {
 	maps.Copy(SupportedModels, AnthropicModels)
 	maps.Copy(SupportedModels, OpenAIModels)
 	maps.Copy(SupportedModels, GeminiModels)
-	maps.Copy(SupportedModels, GroqModels)
 	maps.Copy(SupportedModels, AzureModels)
 	maps.Copy(SupportedModels, OpenRouterModels)
 	maps.Copy(SupportedModels, XAIModels)

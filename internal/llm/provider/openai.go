@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/mohammadtihame/maebrcode/internal/config"
@@ -17,6 +18,9 @@ import (
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/shared"
 )
+
+const compactRetryMaxTokens int64 = 1024
+const compactRetryMessage = "Request too large for provider token limits; retrying this turn without tools and with a shorter output limit."
 
 type openaiOptions struct {
 	baseURL         string
@@ -193,6 +197,7 @@ func (o *openaiClient) send(ctx context.Context, messages []message.Message, too
 		logging.Debug("Prepared messages", "messages", string(jsonData))
 	}
 	attempts := 0
+	triedCompactRetry := false
 	for {
 		attempts++
 		openaiResponse, err := o.client.Chat.Completions.New(
@@ -201,6 +206,12 @@ func (o *openaiClient) send(ctx context.Context, messages []message.Message, too
 		)
 		// If there is an error we are going to see if we can retry the call
 		if err != nil {
+			if o.shouldCompactRetry(err, params.Tools, triedCompactRetry) {
+				logging.WarnPersist(compactRetryMessage)
+				params = compactRetryParams(params)
+				triedCompactRetry = true
+				continue
+			}
 			retry, after, retryErr := o.shouldRetry(attempts, err)
 			if retryErr != nil {
 				return nil, retryErr
@@ -254,6 +265,7 @@ func (o *openaiClient) stream(ctx context.Context, messages []message.Message, t
 	eventChan := make(chan ProviderEvent)
 
 	go func() {
+		triedCompactRetry := false
 		for {
 			attempts++
 			openaiStream := o.client.Chat.Completions.NewStreaming(
@@ -305,6 +317,12 @@ func (o *openaiClient) stream(ctx context.Context, messages []message.Message, t
 			}
 
 			// If there is an error we are going to see if we can retry the call
+			if o.shouldCompactRetry(err, params.Tools, triedCompactRetry) {
+				logging.WarnPersist(compactRetryMessage)
+				params = compactRetryParams(params)
+				triedCompactRetry = true
+				continue
+			}
 			retry, after, retryErr := o.shouldRetry(attempts, err)
 			if retryErr != nil {
 				eventChan <- ProviderEvent{Type: EventError, Error: retryErr}
@@ -332,6 +350,30 @@ func (o *openaiClient) stream(ctx context.Context, messages []message.Message, t
 	}()
 
 	return eventChan
+}
+
+func (o *openaiClient) shouldCompactRetry(err error, requestTools []openai.ChatCompletionToolParam, alreadyRetried bool) bool {
+	if alreadyRetried || len(requestTools) == 0 {
+		return false
+	}
+	var apierr *openai.Error
+	if errors.As(err, &apierr) && apierr.StatusCode == 413 {
+		return true
+	}
+
+	errText := strings.ToLower(err.Error())
+	return strings.Contains(errText, "request too large") || strings.Contains(errText, "tokens per minute")
+}
+
+func compactRetryParams(params openai.ChatCompletionNewParams) openai.ChatCompletionNewParams {
+	params.Tools = nil
+	if params.MaxTokens.IsPresent() && params.MaxTokens.Value > compactRetryMaxTokens {
+		params.MaxTokens = openai.Int(compactRetryMaxTokens)
+	}
+	if params.MaxCompletionTokens.IsPresent() && params.MaxCompletionTokens.Value > compactRetryMaxTokens {
+		params.MaxCompletionTokens = openai.Int(compactRetryMaxTokens)
+	}
+	return params
 }
 
 func (o *openaiClient) shouldRetry(attempts int, err error) (bool, int64, error) {

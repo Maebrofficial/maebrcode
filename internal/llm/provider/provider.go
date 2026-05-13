@@ -114,10 +114,7 @@ func NewProvider(providerName models.ModelProvider, opts ...ProviderClientOption
 			options: clientOptions,
 			client:  newBedrockClient(clientOptions),
 		}, nil
-	case models.ProviderGROQ:
-		clientOptions.openaiOptions = append(clientOptions.openaiOptions,
-			WithOpenAIBaseURL("https://api.groq.com/openai/v1"),
-		)
+	case models.ProviderOpenAICompatible, models.ProviderOllama:
 		return &baseProvider[OpenAIClient]{
 			options: clientOptions,
 			client:  newOpenAIClient(clientOptions),
@@ -153,9 +150,11 @@ func NewProvider(providerName models.ModelProvider, opts ...ProviderClientOption
 			client:  newOpenAIClient(clientOptions),
 		}, nil
 	case models.ProviderLocal:
-		clientOptions.openaiOptions = append(clientOptions.openaiOptions,
-			WithOpenAIBaseURL(os.Getenv("LOCAL_ENDPOINT")),
-		)
+		if endpoint := os.Getenv("LOCAL_ENDPOINT"); endpoint != "" {
+			clientOptions.openaiOptions = append(clientOptions.openaiOptions,
+				WithOpenAIBaseURL(endpoint),
+			)
+		}
 		return &baseProvider[OpenAIClient]{
 			options: clientOptions,
 			client:  newOpenAIClient(clientOptions),
@@ -224,7 +223,7 @@ func WithAnthropicOptions(anthropicOptions ...AnthropicOption) ProviderClientOpt
 
 func WithOpenAIOptions(openaiOptions ...OpenAIOption) ProviderClientOption {
 	return func(options *providerClientOptions) {
-		options.openaiOptions = openaiOptions
+		options.openaiOptions = append(options.openaiOptions, openaiOptions...)
 	}
 }
 

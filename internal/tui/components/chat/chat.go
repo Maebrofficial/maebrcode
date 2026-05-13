@@ -98,25 +98,83 @@ func lspsConfigured(width int) string {
 }
 
 func logo(width int) string {
-	logo := fmt.Sprintf("%s %s", styles.MaebrCodeIcon, "MaebrCode")
 	t := theme.CurrentTheme()
 	baseStyle := styles.BaseStyle()
 
+	if width >= 54 {
+		return largeLogo(width)
+	}
+
+	maebr := baseStyle.
+		Foreground(t.Primary()).
+		Bold(true).
+		Render("maebr")
+	code := baseStyle.
+		Foreground(t.Text()).
+		Bold(true).
+		Render("code")
 	versionText := baseStyle.
 		Foreground(t.TextMuted()).
 		Render(version.Version)
 
 	return baseStyle.
-		Bold(true).
 		Width(width).
 		Render(
 			lipgloss.JoinHorizontal(
 				lipgloss.Left,
-				logo,
+				maebr,
+				code,
 				" ",
 				versionText,
 			),
 		)
+}
+
+func largeLogo(width int) string {
+	t := theme.CurrentTheme()
+	baseStyle := styles.BaseStyle()
+
+	maebrRows := []string{
+		"█   █  ███  █████ ████  ████ ",
+		"██ ██ █   █ █     █   █ █   █",
+		"█ █ █ █████ ████  ████  ████ ",
+		"█   █ █   █ █     █   █ █ █  ",
+		"█   █ █   █ █████ ████  █  ██",
+	}
+	codeRows := []string{
+		" ████  ███  ████  █████",
+		"█     █   █ █   █ █    ",
+		"█     █   █ █   █ ████ ",
+		"█     █   █ █   █ █    ",
+		" ████  ███  ████  █████",
+	}
+
+	maebrStyle := baseStyle.
+		Foreground(t.Primary()).
+		Bold(true)
+	codeStyle := baseStyle.
+		Foreground(t.Text()).
+		Bold(true)
+	mutedStyle := baseStyle.Foreground(t.TextMuted())
+
+	lines := make([]string, 0, len(maebrRows)+1)
+	for i := range maebrRows {
+		line := lipgloss.JoinHorizontal(
+			lipgloss.Left,
+			maebrStyle.Render(maebrRows[i]),
+			" ",
+			codeStyle.Render(codeRows[i]),
+		)
+		lines = append(lines, lipgloss.PlaceHorizontal(width, lipgloss.Center, line))
+	}
+
+	if version.Version != "" {
+		lines = append(lines, lipgloss.PlaceHorizontal(width, lipgloss.Center, mutedStyle.Render(version.Version)))
+	}
+
+	return baseStyle.
+		Width(width).
+		Render(lipgloss.JoinVertical(lipgloss.Left, lines...))
 }
 
 func repo(width int) string {

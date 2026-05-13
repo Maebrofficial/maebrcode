@@ -45,15 +45,18 @@ const (
 
 // Agent defines configuration for different LLM models and their token limits.
 type Agent struct {
-	Model           models.ModelID `json:"model"`
-	MaxTokens       int64          `json:"maxTokens"`
-	ReasoningEffort string         `json:"reasoningEffort"` // For openai models low,medium,heigh
+	Provider        models.ModelProvider `json:"provider,omitempty"`
+	Model           models.ModelID       `json:"model"`
+	MaxTokens       int64                `json:"maxTokens"`
+	ReasoningEffort string               `json:"reasoningEffort"` // For openai models low,medium,heigh
 }
 
 // Provider defines configuration for an LLM provider.
 type Provider struct {
-	APIKey   string `json:"apiKey"`
-	Disabled bool   `json:"disabled"`
+	Type     models.ModelProvider `json:"type,omitempty"`
+	APIKey   string               `json:"apiKey"`
+	BaseURL  string               `json:"baseURL,omitempty"`
+	Disabled bool                 `json:"disabled"`
 }
 
 // Data defines storage configuration.
@@ -156,6 +159,7 @@ func Load(workingDir string, debug bool) (*Config, error) {
 	}
 
 	applyDefaultValues()
+	registerConfiguredAgentModels()
 	defaultLevel := slog.LevelInfo
 	if cfg.Debug {
 		defaultLevel = slog.LevelDebug
@@ -207,11 +211,9 @@ func Load(workingDir string, debug bool) (*Config, error) {
 		cfg.Agents = make(map[AgentName]Agent)
 	}
 
-	// Override the max tokens for title agent
-	cfg.Agents[AgentTitle] = Agent{
-		Model:     cfg.Agents[AgentTitle].Model,
-		MaxTokens: 80,
-	}
+	titleAgent := cfg.Agents[AgentTitle]
+	titleAgent.MaxTokens = 80
+	cfg.Agents[AgentTitle] = titleAgent
 	return cfg, nil
 }
 
@@ -264,9 +266,6 @@ func setProviderDefaults() {
 	if apiKey := os.Getenv("GEMINI_API_KEY"); apiKey != "" {
 		viper.SetDefault("providers.gemini.apiKey", apiKey)
 	}
-	if apiKey := os.Getenv("GROQ_API_KEY"); apiKey != "" {
-		viper.SetDefault("providers.groq.apiKey", apiKey)
-	}
 	if apiKey := os.Getenv("OPENROUTER_API_KEY"); apiKey != "" {
 		viper.SetDefault("providers.openrouter.apiKey", apiKey)
 	}
@@ -283,14 +282,29 @@ func setProviderDefaults() {
 			viper.Set("providers.copilot.apiKey", apiKey)
 		}
 	}
+	if model := strings.TrimSpace(os.Getenv("OLLAMA_MODEL")); model != "" {
+		viper.SetDefault("providers.ollama.type", models.ProviderOllama)
+		viper.SetDefault("providers.ollama.apiKey", "ollama")
+		viper.SetDefault("providers.ollama.baseURL", ollamaBaseURL())
+
+		registered := models.RegisterConfiguredModel(models.ProviderOllama, model)
+		viper.SetDefault("agents.coder.provider", models.ProviderOllama)
+		viper.SetDefault("agents.coder.model", registered.ID)
+		viper.SetDefault("agents.summarizer.provider", models.ProviderOllama)
+		viper.SetDefault("agents.summarizer.model", registered.ID)
+		viper.SetDefault("agents.task.provider", models.ProviderOllama)
+		viper.SetDefault("agents.task.model", registered.ID)
+		viper.SetDefault("agents.title.provider", models.ProviderOllama)
+		viper.SetDefault("agents.title.model", registered.ID)
+	}
 
 	// Use this order to set the default models
 	// 1. Copilot
 	// 2. Anthropic
 	// 3. OpenAI
 	// 4. Google Gemini
-	// 5. Groq
-	// 6. OpenRouter
+	// 5. OpenRouter
+	// 6. Ollama
 	// 7. AWS Bedrock
 	// 8. Azure
 	// 9. Google Cloud VertexAI
@@ -331,21 +345,25 @@ func setProviderDefaults() {
 		return
 	}
 
-	// Groq configuration
-	if key := viper.GetString("providers.groq.apiKey"); strings.TrimSpace(key) != "" {
-		viper.SetDefault("agents.coder.model", models.QWENQwq)
-		viper.SetDefault("agents.summarizer.model", models.QWENQwq)
-		viper.SetDefault("agents.task.model", models.QWENQwq)
-		viper.SetDefault("agents.title.model", models.QWENQwq)
-		return
-	}
-
 	// OpenRouter configuration
 	if key := viper.GetString("providers.openrouter.apiKey"); strings.TrimSpace(key) != "" {
 		viper.SetDefault("agents.coder.model", models.OpenRouterClaude37Sonnet)
 		viper.SetDefault("agents.summarizer.model", models.OpenRouterClaude37Sonnet)
 		viper.SetDefault("agents.task.model", models.OpenRouterClaude37Sonnet)
 		viper.SetDefault("agents.title.model", models.OpenRouterClaude35Haiku)
+		return
+	}
+
+	if model := strings.TrimSpace(os.Getenv("OLLAMA_MODEL")); model != "" {
+		registered := models.RegisterConfiguredModel(models.ProviderOllama, model)
+		viper.SetDefault("agents.coder.provider", models.ProviderOllama)
+		viper.SetDefault("agents.coder.model", registered.ID)
+		viper.SetDefault("agents.summarizer.provider", models.ProviderOllama)
+		viper.SetDefault("agents.summarizer.model", registered.ID)
+		viper.SetDefault("agents.task.provider", models.ProviderOllama)
+		viper.SetDefault("agents.task.model", registered.ID)
+		viper.SetDefault("agents.title.provider", models.ProviderOllama)
+		viper.SetDefault("agents.title.model", registered.ID)
 		return
 	}
 
@@ -469,6 +487,77 @@ func applyDefaultValues() {
 			cfg.MCPServers[k] = v
 		}
 	}
+
+	for providerID, provider := range cfg.Providers {
+		if provider.Type == "" {
+			provider.Type = providerID
+		}
+		if provider.Type == models.ProviderOllama {
+			if provider.BaseURL == "" {
+				provider.BaseURL = ollamaBaseURL()
+			}
+			if provider.APIKey == "" {
+				provider.APIKey = "ollama"
+			}
+		}
+		if provider.Type == models.ProviderLocal && provider.BaseURL == "" {
+			provider.BaseURL = os.Getenv("LOCAL_ENDPOINT")
+		}
+		cfg.Providers[providerID] = provider
+	}
+}
+
+func registerConfiguredAgentModels() {
+	for name, agent := range cfg.Agents {
+		providerID := agent.Provider
+		if providerID == "" {
+			providerID = inferProviderFromConfiguredModel(agent.Model)
+		}
+		if providerID == "" {
+			continue
+		}
+		if _, ok := cfg.Providers[providerID]; !ok {
+			continue
+		}
+		if existing, ok := models.SupportedModels[agent.Model]; ok && existing.Provider == providerID {
+			continue
+		}
+
+		rawModel := strings.TrimPrefix(string(agent.Model), string(providerID)+".")
+		model := models.RegisterConfiguredModel(providerID, rawModel)
+		if model.ID == "" {
+			continue
+		}
+		agent.Provider = providerID
+		agent.Model = model.ID
+		cfg.Agents[name] = agent
+	}
+}
+
+func inferProviderFromConfiguredModel(modelID models.ModelID) models.ModelProvider {
+	parts := strings.SplitN(string(modelID), ".", 2)
+	if len(parts) != 2 {
+		return ""
+	}
+	providerID := models.ModelProvider(parts[0])
+	if _, ok := cfg.Providers[providerID]; ok {
+		return providerID
+	}
+	return ""
+}
+
+func ollamaBaseURL() string {
+	if endpoint := strings.TrimSpace(os.Getenv("OLLAMA_ENDPOINT")); endpoint != "" {
+		return endpoint
+	}
+	if host := strings.TrimSpace(os.Getenv("OLLAMA_HOST")); host != "" {
+		host = strings.TrimRight(host, "/")
+		if strings.HasSuffix(host, "/v1") {
+			return host
+		}
+		return host + "/v1"
+	}
+	return "http://localhost:11434/v1"
 }
 
 // It validates model IDs and providers, ensuring they are supported.
@@ -518,7 +607,7 @@ func validateAgent(cfg *Config, name AgentName, agent Agent) error {
 			}
 			logging.Info("added provider from environment", "provider", provider)
 		}
-	} else if providerCfg.Disabled || providerCfg.APIKey == "" {
+	} else if providerCfg.Disabled || (providerRequiresAPIKey(provider, providerCfg) && providerCfg.APIKey == "") {
 		// Provider is disabled or has no API key
 		logging.Warn("provider is disabled or has no API key, reverting to default",
 			"agent", name,
@@ -563,7 +652,7 @@ func validateAgent(cfg *Config, name AgentName, agent Agent) error {
 	}
 
 	// Validate reasoning effort for models that support reasoning
-	if model.CanReason && provider == models.ProviderOpenAI || provider == models.ProviderLocal {
+	if model.CanReason && (provider == models.ProviderOpenAI || provider == models.ProviderLocal || provider == models.ProviderOllama) {
 		if agent.ReasoningEffort == "" {
 			// Set default reasoning effort for models that support it
 			logging.Info("setting default reasoning effort for model that supports reasoning",
@@ -620,8 +709,10 @@ func Validate() error {
 
 	// Validate providers
 	for provider, providerCfg := range cfg.Providers {
-		if providerCfg.APIKey == "" && !providerCfg.Disabled {
-			fmt.Printf("provider has no API key, marking as disabled %s", provider)
+		if providerCfg.Type == models.ProviderOpenAICompatible && providerCfg.BaseURL == "" && !providerCfg.Disabled {
+			return fmt.Errorf("provider %s uses type %s but has no baseURL", provider, providerCfg.Type)
+		}
+		if providerRequiresAPIKey(provider, providerCfg) && providerCfg.APIKey == "" && !providerCfg.Disabled {
 			logging.Warn("provider has no API key, marking as disabled", "provider", provider)
 			providerCfg.Disabled = true
 			cfg.Providers[provider] = providerCfg
@@ -649,12 +740,12 @@ func getProviderAPIKey(provider models.ModelProvider) string {
 		return os.Getenv("OPENAI_API_KEY")
 	case models.ProviderGemini:
 		return os.Getenv("GEMINI_API_KEY")
-	case models.ProviderGROQ:
-		return os.Getenv("GROQ_API_KEY")
 	case models.ProviderAzure:
 		return os.Getenv("AZURE_OPENAI_API_KEY")
 	case models.ProviderOpenRouter:
 		return os.Getenv("OPENROUTER_API_KEY")
+	case models.ProviderOllama:
+		return "ollama"
 	case models.ProviderBedrock:
 		if hasAWSCredentials() {
 			return "aws-credentials-available"
@@ -665,6 +756,19 @@ func getProviderAPIKey(provider models.ModelProvider) string {
 		}
 	}
 	return ""
+}
+
+func providerRequiresAPIKey(provider models.ModelProvider, providerCfg Provider) bool {
+	providerType := providerCfg.Type
+	if providerType == "" {
+		providerType = provider
+	}
+	switch providerType {
+	case models.ProviderBedrock, models.ProviderVertexAI, models.ProviderLocal, models.ProviderOllama:
+		return false
+	default:
+		return true
+	}
 }
 
 // setDefaultModelForAgent sets a default model for an agent based on available providers
@@ -763,19 +867,6 @@ func setDefaultModelForAgent(agent AgentName) bool {
 
 		cfg.Agents[agent] = Agent{
 			Model:     model,
-			MaxTokens: maxTokens,
-		}
-		return true
-	}
-
-	if apiKey := os.Getenv("GROQ_API_KEY"); apiKey != "" {
-		maxTokens := int64(5000)
-		if agent == AgentTitle {
-			maxTokens = 80
-		}
-
-		cfg.Agents[agent] = Agent{
-			Model:     models.QWENQwq,
 			MaxTokens: maxTokens,
 		}
 		return true

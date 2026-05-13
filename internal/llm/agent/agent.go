@@ -338,7 +338,13 @@ func (a *agent) streamAndHandleEvents(ctx context.Context, sessionID string, msg
 	// Process each event in the stream.
 	for event := range eventChan {
 		if processErr := a.processEvent(ctx, sessionID, &assistantMsg, event); processErr != nil {
-			a.finishMessage(ctx, &assistantMsg, message.FinishReasonCanceled)
+			finishReason := message.FinishReasonError
+			if errors.Is(processErr, context.Canceled) {
+				finishReason = message.FinishReasonCanceled
+			} else if assistantMsg.Content().String() == "" {
+				assistantMsg.AppendContent(fmt.Sprintf("Request failed: %s", processErr.Error()))
+			}
+			a.finishMessage(ctx, &assistantMsg, finishReason)
 			return assistantMsg, nil, processErr
 		}
 		if ctx.Err() != nil {
@@ -721,6 +727,17 @@ func createAgentProvider(agentName config.AgentName) (provider.Provider, error) 
 	if providerCfg.Disabled {
 		return nil, fmt.Errorf("provider %s is not enabled", model.Provider)
 	}
+	providerType := providerCfg.Type
+	if providerType == "" {
+		providerType = model.Provider
+	}
+	baseURL := providerCfg.BaseURL
+	if providerType == models.ProviderOllama && baseURL == "" {
+		baseURL = "http://localhost:11434/v1"
+	}
+	if providerType == models.ProviderLocal && baseURL == "" {
+		baseURL = cfg.Providers[model.Provider].BaseURL
+	}
 	maxTokens := model.DefaultMaxTokens
 	if agentConfig.MaxTokens > 0 {
 		maxTokens = agentConfig.MaxTokens
@@ -731,7 +748,15 @@ func createAgentProvider(agentName config.AgentName) (provider.Provider, error) 
 		provider.WithSystemMessage(prompt.GetAgentPrompt(agentName, model.Provider)),
 		provider.WithMaxTokens(maxTokens),
 	}
-	if model.Provider == models.ProviderOpenAI || model.Provider == models.ProviderLocal && model.CanReason {
+	if baseURL != "" {
+		opts = append(
+			opts,
+			provider.WithOpenAIOptions(
+				provider.WithOpenAIBaseURL(baseURL),
+			),
+		)
+	}
+	if model.CanReason && (providerType == models.ProviderOpenAI || providerType == models.ProviderLocal || providerType == models.ProviderOllama || providerType == models.ProviderOpenAICompatible) {
 		opts = append(
 			opts,
 			provider.WithOpenAIOptions(
@@ -747,7 +772,7 @@ func createAgentProvider(agentName config.AgentName) (provider.Provider, error) 
 		)
 	}
 	agentProvider, err := provider.NewProvider(
-		model.Provider,
+		providerType,
 		opts...,
 	)
 	if err != nil {

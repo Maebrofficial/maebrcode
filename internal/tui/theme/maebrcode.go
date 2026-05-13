@@ -19,9 +19,9 @@ func NewMaebrCodeTheme() *MaebrCodeTheme {
 	darkSelection := "#303030"
 	darkForeground := "#e0e0e0"
 	darkComment := "#6a6a6a"
-	darkPrimary := "#fab283"   // Primary orange/gold
-	darkSecondary := "#5c9cf5" // Secondary blue
-	darkAccent := "#9d7cd8"    // Accent purple
+	darkPrimary := "#b48cff"   // Primary purple
+	darkSecondary := "#7aa2ff" // Secondary blue
+	darkAccent := "#d8c7ff"    // Accent lavender
 	darkRed := "#e06c75"       // Error red
 	darkOrange := "#f5a742"    // Warning orange
 	darkGreen := "#7fd88f"     // Success green
@@ -35,9 +35,9 @@ func NewMaebrCodeTheme() *MaebrCodeTheme {
 	lightSelection := "#e5e5e6"
 	lightForeground := "#2a2a2a"
 	lightComment := "#8a8a8a"
-	lightPrimary := "#3b7dd8"   // Primary blue
-	lightSecondary := "#7b5bb6" // Secondary purple
-	lightAccent := "#d68c27"    // Accent orange/gold
+	lightPrimary := "#7b3ff2"   // Primary purple
+	lightSecondary := "#3b7dd8" // Secondary blue
+	lightAccent := "#9b6cff"    // Accent lavender
 	lightRed := "#d1383d"       // Error red
 	lightOrange := "#d68c27"    // Warning orange
 	lightGreen := "#3d9a57"     // Success green

@@ -53,6 +53,8 @@ func init() {
 		loadLocalModels(models)
 
 		viper.SetDefault("providers.local.apiKey", "dummy")
+		viper.SetDefault("providers.local.type", ProviderLocal)
+		viper.SetDefault("providers.local.baseURL", endpoint)
 		ProviderPopularity[ProviderLocal] = 0
 	}
 }

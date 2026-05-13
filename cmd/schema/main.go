@@ -181,6 +181,14 @@ func generateSchema() map[string]any {
 					"type":        "string",
 					"description": "API key for the provider",
 				},
+				"type": map[string]any{
+					"type":        "string",
+					"description": "Provider implementation type. Use openai-compatible for arbitrary hosted APIs.",
+				},
+				"baseURL": map[string]any{
+					"type":        "string",
+					"description": "Base URL for OpenAI-compatible, Ollama, or local providers",
+				},
 				"disabled": map[string]any{
 					"type":        "boolean",
 					"description": "Whether the provider is disabled",
@@ -195,16 +203,21 @@ func generateSchema() map[string]any {
 		string(models.ProviderAnthropic),
 		string(models.ProviderOpenAI),
 		string(models.ProviderGemini),
-		string(models.ProviderGROQ),
 		string(models.ProviderOpenRouter),
+		string(models.ProviderXAI),
+		string(models.ProviderCopilot),
+		string(models.ProviderLocal),
+		string(models.ProviderOllama),
+		string(models.ProviderOpenAICompatible),
 		string(models.ProviderBedrock),
 		string(models.ProviderAzure),
 		string(models.ProviderVertexAI),
 	}
 
+	providerSchema["additionalProperties"].(map[string]any)["properties"].(map[string]any)["type"].(map[string]any)["enum"] = knownProviders
 	providerSchema["additionalProperties"].(map[string]any)["properties"].(map[string]any)["provider"] = map[string]any{
 		"type":        "string",
-		"description": "Provider type",
+		"description": "Deprecated alias for provider type",
 		"enum":        knownProviders,
 	}
 
@@ -220,7 +233,11 @@ func generateSchema() map[string]any {
 			"properties": map[string]any{
 				"model": map[string]any{
 					"type":        "string",
-					"description": "Model ID for the agent",
+					"description": "Model ID or raw provider model name for the agent",
+				},
+				"provider": map[string]any{
+					"type":        "string",
+					"description": "Provider id from the providers map, required when using a raw model name",
 				},
 				"maxTokens": map[string]any{
 					"type":        "integer",
@@ -236,13 +253,6 @@ func generateSchema() map[string]any {
 			"required": []string{"model"},
 		},
 	}
-
-	// Add model enum
-	modelEnum := []string{}
-	for modelID := range models.SupportedModels {
-		modelEnum = append(modelEnum, string(modelID))
-	}
-	agentSchema["additionalProperties"].(map[string]any)["properties"].(map[string]any)["model"].(map[string]any)["enum"] = modelEnum
 
 	// Add specific agent properties
 	agentProperties := map[string]any{}

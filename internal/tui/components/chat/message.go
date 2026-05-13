@@ -165,9 +165,18 @@ func renderAssistantMessage(
 			)
 		}
 	}
-	if content != "" || (finished && finishData.Reason == message.FinishReasonEndTurn) {
+	if content != "" || finished {
 		if content == "" {
-			content = "*Finished without output*"
+			switch finishData.Reason {
+			case message.FinishReasonCanceled:
+				content = "*Canceled*"
+			case message.FinishReasonError:
+				content = "*Request failed*"
+			case message.FinishReasonPermissionDenied:
+				content = "*Permission denied*"
+			default:
+				content = "*Finished without output*"
+			}
 		}
 		if isSummary {
 			info = append(info, baseStyle.Width(width-1).Foreground(t.TextMuted()).Render(" (summary)"))
