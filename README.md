@@ -1,4 +1,5 @@
-# ⌬ MaebrCode
+# <img width="1563" height="1563" alt="Maebr" src="https://github.com/user-attachments/assets/1fb6317e-4c40-421a-8d6a-0c8bb78b6e9e" />
+MaebrCode
 
 > **⚠️ Early Development Notice:** This project is in early development and is not yet ready for production use. Features may change, break, or be incomplete. Use at your own risk.
 
