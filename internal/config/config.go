@@ -157,6 +157,9 @@ func Load(workingDir string, debug bool) (*Config, error) {
 	if err := viper.Unmarshal(cfg); err != nil {
 		return cfg, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+	if cfg.Agents == nil {
+		cfg.Agents = make(map[AgentName]Agent)
+	}
 
 	applyDefaultValues()
 	registerConfiguredAgentModels()
@@ -205,10 +208,6 @@ func Load(workingDir string, debug bool) (*Config, error) {
 	// Validate configuration
 	if err := Validate(); err != nil {
 		return cfg, fmt.Errorf("config validation failed: %w", err)
-	}
-
-	if cfg.Agents == nil {
-		cfg.Agents = make(map[AgentName]Agent)
 	}
 
 	titleAgent := cfg.Agents[AgentTitle]
@@ -700,6 +699,22 @@ func Validate() error {
 		return fmt.Errorf("config not loaded")
 	}
 
+	for _, name := range []AgentName{AgentCoder, AgentSummarizer, AgentTask, AgentTitle} {
+		if _, ok := cfg.Agents[name]; ok {
+			continue
+		}
+		if fallback, ok := fallbackAgentFromConfiguredAgents(name); ok {
+			cfg.Agents[name] = fallback
+			logging.Info("copied existing model for missing agent", "agent", name, "model", fallback.Model)
+			continue
+		}
+		if setDefaultModelForAgent(name) {
+			logging.Info("set default model for missing agent", "agent", name, "model", cfg.Agents[name].Model)
+			continue
+		}
+		return fmt.Errorf("no valid provider available for agent %s", name)
+	}
+
 	// Validate agent models
 	for name, agent := range cfg.Agents {
 		if err := validateAgent(cfg, name, agent); err != nil {
@@ -729,6 +744,22 @@ func Validate() error {
 	}
 
 	return nil
+}
+
+func fallbackAgentFromConfiguredAgents(name AgentName) (Agent, bool) {
+	for _, existingName := range []AgentName{AgentCoder, AgentTask, AgentSummarizer, AgentTitle} {
+		agent, ok := cfg.Agents[existingName]
+		if !ok || agent.Model == "" {
+			continue
+		}
+		if name == AgentTitle {
+			agent.MaxTokens = 80
+		} else if agent.MaxTokens <= 0 || agent.MaxTokens == 80 {
+			agent.MaxTokens = 5000
+		}
+		return agent, true
+	}
+	return Agent{}, false
 }
 
 // getProviderAPIKey gets the API key for a provider from environment variables
@@ -957,6 +988,24 @@ func updateCfgFile(updateCfg func(config *Config)) error {
 // It's safe to call this function multiple times.
 func Get() *Config {
 	return cfg
+}
+
+// Reset clears the loaded config and viper state so configuration can be
+// reloaded after an interactive setup flow changes files on disk.
+func Reset() {
+	cfg = nil
+	viper.Reset()
+}
+
+// IsProviderSetupError reports whether an error can likely be fixed by running
+// the provider setup wizard.
+func IsProviderSetupError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "no valid provider available") ||
+		strings.Contains(msg, "uses type openai-compatible but has no baseURL")
 }
 
 // WorkingDirectory returns the current working directory from the configuration.

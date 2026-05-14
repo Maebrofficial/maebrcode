@@ -10,7 +10,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	zone "github.com/lrstanley/bubblezone"
 	"github.com/mohammadtihame/maebrcode/internal/app"
-	"github.com/mohammadtihame/maebrcode/internal/config"
 	"github.com/mohammadtihame/maebrcode/internal/db"
 	"github.com/mohammadtihame/maebrcode/internal/format"
 	"github.com/mohammadtihame/maebrcode/internal/llm/agent"
@@ -22,12 +21,16 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "maebrcode",
-	Short: "Terminal-based AI assistant for software development",
+	Use:          "maebrcode",
+	Short:        "Terminal-based AI assistant for software development",
+	SilenceUsage: true,
 	Long: `MaebrCode is a powerful terminal-based AI assistant that helps with software development tasks.
 It provides an interactive chat interface with AI capabilities, code analysis, and LSP integration
 to assist developers in writing, debugging, and understanding code directly from the terminal.`,
 	Example: `
+  # Guided first-time setup
+  maebrcode setup
+
   # Run in interactive mode
   maebrcode
 
@@ -82,7 +85,7 @@ to assist developers in writing, debugging, and understanding code directly from
 			}
 			cwd = c
 		}
-		_, err := config.Load(cwd, debug)
+		_, err := loadConfigOrOfferSetup(cwd, debug, prompt == "")
 		if err != nil {
 			return err
 		}
@@ -289,6 +292,8 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.AddCommand(newSetupCommand())
+
 	rootCmd.Flags().BoolP("help", "h", false, "Help")
 	rootCmd.Flags().BoolP("version", "v", false, "Version")
 	rootCmd.Flags().BoolP("debug", "d", false, "Debug")

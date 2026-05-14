@@ -65,6 +65,16 @@ MaebrCode looks for configuration in the following locations:
 - `$XDG_CONFIG_HOME/maebrcode/.maebrcode.json`
 - `./.maebrcode.json` (local directory)
 
+### First-Time Setup
+
+Run the guided setup wizard:
+
+```bash
+maebrcode setup
+```
+
+The wizard asks which AI provider you want to use, securely prompts for an API key when needed, writes `~/.maebrcode.json`, and configures the `coder`, `summarizer`, `task`, and `title` agents automatically.
+
 ### Auto Compact Feature
 
 MaebrCode includes an auto compact feature that automatically summarizes your conversation when it approaches the model's context window limit. When enabled (default setting), this feature:
