@@ -85,12 +85,15 @@ to assist developers in writing, debugging, and understanding code directly from
 			}
 			cwd = c
 		}
-		_, err := loadConfigOrOfferSetup(cwd, debug, prompt == "")
+		interactive := prompt == ""
+		startupNote(interactive, "loading configuration")
+		_, err := loadConfigOrOfferSetup(cwd, debug, interactive)
 		if err != nil {
 			return err
 		}
 
 		// Connect DB, this will also run migrations
+		startupNote(interactive, "opening local session database")
 		conn, err := db.Connect()
 		if err != nil {
 			return err
@@ -100,6 +103,7 @@ to assist developers in writing, debugging, and understanding code directly from
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
+		startupNote(interactive, "preparing the assistant")
 		app, err := app.New(ctx, conn)
 		if err != nil {
 			logging.Error("Failed to create app: %v", err)
@@ -119,6 +123,7 @@ to assist developers in writing, debugging, and understanding code directly from
 
 		// Interactive mode
 		// Set up the TUI
+		startupNote(interactive, "opening the interface")
 		zone.NewGlobal()
 		program := tea.NewProgram(
 			tui.New(app),

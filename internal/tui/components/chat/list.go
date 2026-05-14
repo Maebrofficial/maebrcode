@@ -402,11 +402,17 @@ func (m *messagesCmp) help() string {
 
 func (m *messagesCmp) initialScreen() string {
 	baseStyle := styles.BaseStyle()
+	t := theme.CurrentTheme()
+	ready := baseStyle.
+		Foreground(t.TextMuted()).
+		Render("Ready. Type your message below and press Enter.")
 
 	return baseStyle.Width(m.width).Render(
 		lipgloss.JoinVertical(
 			lipgloss.Top,
 			header(m.width),
+			"",
+			ready,
 			"",
 			lspsConfigured(m.width),
 		),

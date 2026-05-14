@@ -88,6 +88,7 @@ type filepickerCmp struct {
 	cwdDetails     *DirNode
 	selectedFile   string
 	cwd            textinput.Model
+	loaded         bool
 	ShowFilePicker bool
 	app            *app.App
 }
@@ -124,8 +125,9 @@ func (f *filepickerCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		f.height = 20
 		f.viewport.Width = 80
 		f.viewport.Height = 22
-		f.cursor = 0
-		f.getCurrentFileBelowCursor()
+		if f.ShowFilePicker {
+			f.loadCurrentDirectory()
+		}
 	case tea.KeyMsg:
 		if f.cwd.Focused() {
 			f.cwd, cmd = f.cwd.Update(msg)
@@ -215,6 +217,7 @@ func (f *filepickerCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, filePickerKeyMap.OpenFilePicker):
 			f.dirs = readDir(f.cwdDetails.directory, false)
 			f.cursor = 0
+			f.loaded = true
 			f.getCurrentFileBelowCursor()
 		}
 	}
@@ -360,6 +363,9 @@ type FilepickerCmp interface {
 
 func (f *filepickerCmp) ToggleFilepicker(showFilepicker bool) {
 	f.ShowFilePicker = showFilepicker
+	if showFilepicker {
+		f.loadCurrentDirectory()
+	}
 }
 
 func (f *filepickerCmp) IsCWDFocused() bool {
@@ -373,14 +379,23 @@ func NewFilepickerCmp(app *app.App) FilepickerCmp {
 		return nil
 	}
 	baseDir := DirNode{parent: nil, directory: homepath}
-	dirs := readDir(homepath, false)
 	viewport := viewport.New(0, 0)
 	currentDirectory := textinput.New()
 	currentDirectory.CharLimit = 200
 	currentDirectory.Width = 44
 	currentDirectory.Cursor.Blink = true
 	currentDirectory.SetValue(baseDir.directory)
-	return &filepickerCmp{cwdDetails: &baseDir, dirs: dirs, cursorChain: make(stack, 0), viewport: viewport, cwd: currentDirectory, app: app}
+	return &filepickerCmp{cwdDetails: &baseDir, cursorChain: make(stack, 0), viewport: viewport, cwd: currentDirectory, app: app}
+}
+
+func (f *filepickerCmp) loadCurrentDirectory() {
+	if f.loaded {
+		return
+	}
+	f.dirs = readDir(f.cwdDetails.directory, false)
+	f.cursor = 0
+	f.loaded = true
+	f.getCurrentFileBelowCursor()
 }
 
 func (f *filepickerCmp) getCurrentFileBelowCursor() {

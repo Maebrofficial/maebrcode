@@ -170,6 +170,13 @@ func setupNeededError() error {
 	return errors.New("MaebrCode needs an AI provider before it can run.\n\nRun `maebrcode setup` and choose OpenAI, Anthropic, Gemini, Groq, Ollama, or a custom OpenAI-compatible API.")
 }
 
+func startupNote(enabled bool, message string) {
+	if !enabled || !term.IsTerminal(int(os.Stderr.Fd())) {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "MaebrCode: %s...\n", message)
+}
+
 func runSetupWizard(in *os.File, out io.Writer) error {
 	return runSetupWizardWithReader(in, bufio.NewReader(in), out)
 }
