@@ -2,9 +2,12 @@ package completions
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/lithammer/fuzzysearch/fuzzy"
 	"github.com/mohammadtihame/maebrcode/internal/fileutil"
@@ -15,6 +18,11 @@ import (
 type filesAndFoldersContextGroup struct {
 	prefix string
 }
+
+const (
+	completionScanLimit   = 200
+	completionScanTimeout = 3 * time.Second
+)
 
 func (cg *filesAndFoldersContextGroup) GetId() string {
 	return cg.prefix
@@ -56,8 +64,11 @@ func processNullTerminatedOutput(outputBytes []byte) []string {
 }
 
 func (cg *filesAndFoldersContextGroup) getFiles(query string) ([]string, error) {
-	cmdRg := fileutil.GetRgCmd("") // No glob pattern for this use case
-	cmdFzf := fileutil.GetFzfCmd(query)
+	ctx, cancel := context.WithTimeout(context.Background(), completionScanTimeout)
+	defer cancel()
+
+	cmdRg := fileutil.GetRgCmdContext(ctx, "") // No glob pattern for this use case
+	cmdFzf := fileutil.GetFzfCmdContext(ctx, query)
 
 	var matches []string
 	// Case 1: Both rg and fzf available
@@ -81,6 +92,11 @@ func (cg *filesAndFoldersContextGroup) getFiles(query string) ([]string, error) 
 		errRg := cmdRg.Run()
 		errFzf := cmdFzf.Wait()
 
+		if completionScanTimedOut(ctx) {
+			logging.Warn("File completion scan timed out", "query", query)
+			return []string{}, nil
+		}
+
 		if errRg != nil {
 			logging.Warn(fmt.Sprintf("rg command failed during pipe: %v", errRg))
 		}
@@ -103,6 +119,10 @@ func (cg *filesAndFoldersContextGroup) getFiles(query string) ([]string, error) 
 		cmdRg.Stderr = &rgErr
 
 		if err := cmdRg.Run(); err != nil {
+			if completionScanTimedOut(ctx) {
+				logging.Warn("File completion scan timed out", "query", query)
+				return []string{}, nil
+			}
 			return nil, fmt.Errorf("rg command failed: %w\nStderr: %s", err, rgErr.String())
 		}
 
@@ -112,7 +132,7 @@ func (cg *filesAndFoldersContextGroup) getFiles(query string) ([]string, error) 
 		// Case 3: Only fzf available
 	} else if cmdFzf != nil {
 		logging.Debug("Using FZF with doublestar fallback for file completions")
-		files, _, err := fileutil.GlobWithDoublestar("**/*", ".", 0)
+		files, _, err := fileutil.GlobWithDoublestar("**/*", ".", completionScanLimit)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list files for fzf: %w", err)
 		}
@@ -137,6 +157,10 @@ func (cg *filesAndFoldersContextGroup) getFiles(query string) ([]string, error) 
 		cmdFzf.Stderr = &fzfErr
 
 		if err := cmdFzf.Run(); err != nil {
+			if completionScanTimedOut(ctx) {
+				logging.Warn("File completion scan timed out", "query", query)
+				return []string{}, nil
+			}
 			if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
 				return []string{}, nil
 			}
@@ -148,7 +172,7 @@ func (cg *filesAndFoldersContextGroup) getFiles(query string) ([]string, error) 
 		// Case 4: Fallback to doublestar with fuzzy match
 	} else {
 		logging.Debug("Using doublestar with fuzzy match for file completions")
-		allFiles, _, err := fileutil.GlobWithDoublestar("**/*", ".", 0)
+		allFiles, _, err := fileutil.GlobWithDoublestar("**/*", ".", completionScanLimit)
 		if err != nil {
 			return nil, fmt.Errorf("failed to glob files: %w", err)
 		}
@@ -163,7 +187,18 @@ func (cg *filesAndFoldersContextGroup) getFiles(query string) ([]string, error) 
 		matches = fuzzy.Find(query, filteredFiles)
 	}
 
-	return matches, nil
+	return limitMatches(matches, completionScanLimit), nil
+}
+
+func completionScanTimedOut(ctx context.Context) bool {
+	return errors.Is(ctx.Err(), context.DeadlineExceeded)
+}
+
+func limitMatches(matches []string, limit int) []string {
+	if limit <= 0 || len(matches) <= limit {
+		return matches
+	}
+	return matches[:limit]
 }
 
 func (cg *filesAndFoldersContextGroup) GetChildEntries(query string) ([]dialog.CompletionItemI, error) {

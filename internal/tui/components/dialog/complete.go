@@ -127,6 +127,7 @@ func (c *completionDialogCmp) complete(item CompletionItemI) tea.Cmd {
 
 func (c *completionDialogCmp) close() tea.Cmd {
 	c.listView.SetItems([]CompletionItemI{})
+	c.query = ""
 	c.pseudoSearchTextArea.Reset()
 	c.pseudoSearchTextArea.Blur()
 
@@ -153,9 +154,13 @@ func (c *completionDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				if query != c.query {
 					logging.Info("Query", query)
-					items, err := c.completionProvider.GetChildEntries(query)
-					if err != nil {
-						logging.Error("Failed to get child entries", err)
+					items := []CompletionItemI{}
+					if query != "" {
+						var err error
+						items, err = c.completionProvider.GetChildEntries(query)
+						if err != nil {
+							logging.Error("Failed to get child entries", err)
+						}
 					}
 
 					c.listView.SetItems(items)
@@ -187,12 +192,8 @@ func (c *completionDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return c, tea.Batch(cmds...)
 		} else {
-			items, err := c.completionProvider.GetChildEntries("")
-			if err != nil {
-				logging.Error("Failed to get child entries", err)
-			}
-
-			c.listView.SetItems(items)
+			c.query = ""
+			c.listView.SetItems([]CompletionItemI{})
 			c.pseudoSearchTextArea.SetValue(msg.String())
 			return c, c.pseudoSearchTextArea.Focus()
 		}
@@ -243,13 +244,8 @@ func (c *completionDialogCmp) BindingKeys() []key.Binding {
 func NewCompletionDialogCmp(completionProvider CompletionProvider) CompletionDialog {
 	ti := textarea.New()
 
-	items, err := completionProvider.GetChildEntries("")
-	if err != nil {
-		logging.Error("Failed to get child entries", err)
-	}
-
 	li := utilComponents.NewSimpleList(
-		items,
+		[]CompletionItemI{},
 		7,
 		"No file matches found",
 		false,

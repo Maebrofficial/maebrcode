@@ -1,6 +1,7 @@
 package fileutil
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"os"
@@ -34,6 +35,10 @@ func init() {
 }
 
 func GetRgCmd(globPattern string) *exec.Cmd {
+	return GetRgCmdContext(context.Background(), globPattern)
+}
+
+func GetRgCmdContext(ctx context.Context, globPattern string) *exec.Cmd {
 	if rgPath == "" {
 		return nil
 	}
@@ -48,12 +53,16 @@ func GetRgCmd(globPattern string) *exec.Cmd {
 		}
 		rgArgs = append(rgArgs, "--glob", globPattern)
 	}
-	cmd := exec.Command(rgPath, rgArgs...)
+	cmd := exec.CommandContext(ctx, rgPath, rgArgs...)
 	cmd.Dir = "."
 	return cmd
 }
 
 func GetFzfCmd(query string) *exec.Cmd {
+	return GetFzfCmdContext(context.Background(), query)
+}
+
+func GetFzfCmdContext(ctx context.Context, query string) *exec.Cmd {
 	if fzfPath == "" {
 		return nil
 	}
@@ -63,7 +72,7 @@ func GetFzfCmd(query string) *exec.Cmd {
 		"--read0",
 		"--print0",
 	}
-	cmd := exec.Command(fzfPath, fzfArgs...)
+	cmd := exec.CommandContext(ctx, fzfPath, fzfArgs...)
 	cmd.Dir = "."
 	return cmd
 }
